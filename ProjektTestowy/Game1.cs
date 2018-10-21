@@ -14,6 +14,7 @@ namespace ProjektTestowy
         private Point prevMousePos;
         TestObject testObj;
 
+
         public Game1()
         {
             graphics = new GraphicsDeviceManager(this);
@@ -27,6 +28,8 @@ namespace ProjektTestowy
 
         protected override void Initialize()
         {
+            textSpeed = new Vector2(2.5f, 2.5f);
+            rnd = new Random();
             base.Initialize();
 
             prevMousePos = new Point(0, 0);
