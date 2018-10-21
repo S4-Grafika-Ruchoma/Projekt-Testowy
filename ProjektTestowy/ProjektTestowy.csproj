@@ -42,6 +42,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="CustomClasses\Camera.cs" />
+    <Compile Include="CustomClasses\Floor.cs" />
     <Compile Include="CustomClasses\TestObject.cs" />
     <Compile Include="Game1.cs" />
     <Compile Include="Interfaces\IObject3D.cs" />

@@ -5,64 +5,148 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace ProjektTestowy.CustomClasses
 {
-    public class Camera
+    public class Camera : GameComponent
     {
-        public Vector3 camTarget;
-        public Vector3 camPosition;
-        public Matrix projectionMatrix { get; set; }
-        public Matrix viewMatrix { get; set; }
-        public Matrix worldMatrix { get; set; }
+        private Vector3 cameraPosition;
+        private Vector3 cameraRotation;
+        private float cameraSpeed;
+        private Vector3 cameraLookAt;
 
-        public Vector3 Rotation { get; set; }
+        private Vector3 mouseRotationBuffer;
+        private MouseState currentMouseState;
+        private MouseState prevMouseState;
 
-        public Camera(GraphicsDevice graphicsDevice)
-        {
-            camTarget = new Vector3(0, 0, 0);
-            camPosition = new Vector3(0, 0, -100);
-            Rotation = new Vector3();
+        public bool AllowClimb { get; set; }
 
-            projectionMatrix = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45), graphicsDevice.DisplayMode.AspectRatio, 1, 1000);
-            viewMatrix = Matrix.CreateLookAt(camPosition, camTarget, Vector3.Up);
-            worldMatrix = Matrix.CreateWorld(camTarget, Vector3.Forward, Vector3.Up);
-        }
-        public void CalculateMatrix()
+        public Vector3 Position
         {
-            viewMatrix = Matrix.CreateLookAt(camPosition, camTarget, Vector3.Up);
-        }
-        public void UpdateView(BasicEffect basicEffect)
-        {
-            basicEffect.Projection = projectionMatrix;
-            basicEffect.View = viewMatrix;
-            basicEffect.World = worldMatrix;
+            get { return cameraPosition; }
+            set
+            {
+                cameraPosition = value;
+                UpdateLookAt();
+            }
         }
 
-        // Sterowanie pozycją i obrotem !
-
-
-        public void Rotate(Vector3 degrees)
+        public Vector3 Rotation
         {
-            Matrix rotationMatrix = Matrix.CreateRotationY(MathHelper.ToRadians(degrees.Y));
-            camPosition = Vector3.Transform(camPosition, rotationMatrix);
-        }
-        
-        public void MoveCamera(Vector3 position)
-        {
-            camPosition += position;
-            camTarget += position;
+            get { return cameraRotation; }
+            set
+            {
+                cameraRotation = value;
+                UpdateLookAt();
+            }
         }
 
-        public void SetTarget(Vector3 position)
+        public Matrix Projection { get; protected set; }
+
+        public Matrix View => Matrix.CreateLookAt(cameraPosition, cameraLookAt, Vector3.Up);
+
+        public Camera(Game game, Vector3 position, Vector3 rotation, float speed) : base(game)
         {
-            camTarget += position;
+            cameraSpeed = speed;
+            Projection = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, Game.GraphicsDevice.Viewport.AspectRatio, 0.05f, 1000);
+            MoveTo(position, rotation);
+
+            prevMouseState = Mouse.GetState();
         }
 
-        public void SetCameraPosition(Vector3 newPosition, Vector3 newTarget)
+        private void MoveTo(Vector3 pos, Vector3 rot)
         {
-            camTarget = newPosition;
-            camPosition = newTarget;
+            Position = pos;
+            Rotation = rot;
+        }
+
+        private void UpdateLookAt()
+        {
+            var rotationMartix = Matrix.CreateRotationX(cameraRotation.X) * Matrix.CreateRotationY(cameraRotation.Y);
+
+            var lookAtOffset = Vector3.Transform(Vector3.UnitZ, rotationMartix);
+            cameraLookAt = cameraPosition + lookAtOffset;
+        }
+
+        private Vector3 PreviewMove(Vector3 amount)
+        {
+            var rotate = Matrix.CreateRotationY(cameraRotation.Y);
+
+            var movment = new Vector3(amount.X, amount.Y, amount.Z);
+            movment = Vector3.Transform(movment, rotate);
+
+            return cameraPosition + movment;
+        }
+
+        private void Move(Vector3 scale)
+        {
+            MoveTo(PreviewMove(scale), Rotation);
+        }
+
+        public override void Update(GameTime gameTime)
+        {
+            currentMouseState = Mouse.GetState();
+            var keyboardState = Keyboard.GetState();
+            var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            var moveVector = Vector3.Zero;
+
+            if (keyboardState.IsKeyDown(Keys.W))
+                moveVector.Z = 1;
+            if (keyboardState.IsKeyDown(Keys.S))
+                moveVector.Z = -1;
+
+            if (keyboardState.IsKeyDown(Keys.A))
+                moveVector.X = 1;
+            if (keyboardState.IsKeyDown(Keys.D))
+                moveVector.X = -1;
+
+            if (AllowClimb)
+            {
+                if (keyboardState.IsKeyDown(Keys.Space))
+                    moveVector.Y = 1;
+                if (keyboardState.IsKeyDown(Keys.C))
+                    moveVector.Y = -1;
+            }
+
+            if (moveVector != Vector3.Zero)
+            {
+                moveVector.Normalize();
+                moveVector *= dt * cameraSpeed;
+
+                Move(moveVector);
+            }
+
+            float deltaX, deltaY;
+
+            if (currentMouseState != prevMouseState)
+            {
+                deltaX = currentMouseState.X - (Game.GraphicsDevice.Viewport.Width / 2);
+                deltaY = currentMouseState.Y - (Game.GraphicsDevice.Viewport.Height / 2);
+
+                mouseRotationBuffer.X -= 0.05F * deltaX * dt;
+                mouseRotationBuffer.Y -= 0.05F * deltaY * dt;
+
+                if (mouseRotationBuffer.Y < MathHelper.ToRadians(-75))
+                    mouseRotationBuffer.Y -= mouseRotationBuffer.Y - MathHelper.ToRadians(-75);
+
+                if (mouseRotationBuffer.Y > MathHelper.ToRadians(75))
+                    mouseRotationBuffer.Y -= mouseRotationBuffer.Y - MathHelper.ToRadians(75);
+
+                Rotation = new Vector3(
+                    -MathHelper.Clamp(mouseRotationBuffer.Y,MathHelper.ToRadians(-75f),MathHelper.ToRadians(75f)),
+                    MathHelper.WrapAngle(mouseRotationBuffer.X),
+                    0);
+
+                deltaX = 0;
+                deltaY = 0;
+            }
+            Mouse.SetPosition(Game.GraphicsDevice.Viewport.Width / 2, Game.GraphicsDevice.Viewport.Height / 2);
+
+            prevMouseState = currentMouseState;
+
+            base.Update(gameTime);
         }
     }
 }
